@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadDeckBtn = document.getElementById('loadDeckBtn');
     const loader = document.getElementById('loader');
 
+    // Daily Review Elements
+    const startDailyReviewBtn = document.getElementById('start-daily-review-btn');
+    const dailyReviewCount = document.getElementById('daily-review-count');
+
     // Deck Manager Modal Elements
     const manageDecksBtn = document.getElementById('manageDecksBtn');
     const deckManagerModal = document.getElementById('deckManagerModal');
@@ -61,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let appData = {};
     let currentCard = null;
     let quizState = {};
+    let isDailyReviewActive = false;
+    let dailyReviewDeck = [];
 
     // --- Data & State Management ---
     function saveAppData() {
@@ -93,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- View Switching ---
     function setStudyMode(mode) {
+        isDailyReviewActive = false; // Always reset daily review mode when switching
         if (mode === 'recall') {
             quizView.style.display = 'none';
             recallView.style.display = 'block';
@@ -104,10 +111,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Daily Review Logic ---
+    function updateDailyReviewCount() {
+        const now = Date.now();
+        const allDueCards = Object.values(appData.decks).flat().filter(card => card.dueDate <= now);
+        dailyReviewCount.textContent = `(${allDueCards.length})`;
+    }
+
+    function startDailyReview() {
+        const now = Date.now();
+        dailyReviewDeck = Object.values(appData.decks).flat().filter(card => card.dueDate <= now);
+
+        if (dailyReviewDeck.length === 0) {
+            alert("No cards are due for review today!");
+            return;
+        }
+
+        dailyReviewDeck.sort(() => 0.5 - Math.random()); // Shuffle the daily deck
+        isDailyReviewActive = true;
+        studyMode.value = 'recall'; // Daily review always uses recall mode
+        quizView.style.display = 'none';
+        recallView.style.display = 'block';
+        showCard(getNextCard()); // getNextCard will now use the daily review deck
+    }
+
     // --- Recall Mode Logic ---
     function getNextCard() {
+        if (isDailyReviewActive) {
+            return dailyReviewDeck.length > 0 ? dailyReviewDeck[0] : null;
+        }
+
         const activeDeck = appData.decks[appData.activeDeckName];
         if (!activeDeck || activeDeck.length === 0) return null;
+
         const now = Date.now();
         const dueCards = activeDeck.filter(card => card.dueDate <= now);
         if (dueCards.length > 0) {
@@ -174,7 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
             noCardsMessage.textContent = `No cards due for review in "${appData.activeDeckName}". Great job!`;
             noCardsMessage.style.display = 'block';
         }
-        deckNameDisplay.textContent = `Current Deck: ${appData.activeDeckName}`;
+        if (isDailyReviewActive) {
+            deckNameDisplay.textContent = `Daily Review (${dailyReviewDeck.length} cards remaining)`;
+        } else {
+            deckNameDisplay.textContent = `Current Deck: ${appData.activeDeckName}`;
+        }
     }
 
     function checkAnswer() {
@@ -195,23 +235,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function calculateSM2(card, quality) {
-        if (quality < 3) {
-            card.repetition = 0;
-            card.interval = 1;
-        } else {
-            card.repetition += 1;
-            if (card.repetition === 1) card.interval = 1;
-            else if (card.repetition === 2) card.interval = 6;
-            else card.interval = Math.ceil(card.interval * card.easeFactor);
+        // If in a daily review, find the original card to update
+        let originalCard = card;
+        if (isDailyReviewActive) {
+            for (const deckName in appData.decks) {
+                const foundCard = appData.decks[deckName].find(c => c.id === card.id);
+                if (foundCard) {
+                    originalCard = foundCard;
+                    break;
+                }
+            }
         }
-        card.easeFactor += (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-        if (card.easeFactor < 1.3) card.easeFactor = 1.3;
-        const oneDayInMillis = 24 * 60 * 60 * 1000;
-        card.dueDate = Date.now() + card.interval * oneDayInMillis;
 
-        // Record the review event
+        if (quality < 3) {
+            originalCard.repetition = 0;
+            originalCard.interval = 1;
+        } else {
+            originalCard.repetition = (originalCard.repetition || 0) + 1;
+            if (originalCard.repetition === 1) {
+                originalCard.interval = 1;
+            } else if (originalCard.repetition === 2) {
+                originalCard.interval = 6;
+            } else {
+                originalCard.interval = Math.ceil((originalCard.interval || 1) * originalCard.easeFactor);
+            }
+        }
+        originalCard.easeFactor = (originalCard.easeFactor || 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+        if (originalCard.easeFactor < 1.3) originalCard.easeFactor = 1.3;
+
+        const oneDayInMillis = 24 * 60 * 60 * 1000;
+        originalCard.dueDate = Date.now() + originalCard.interval * oneDayInMillis;
+
         appData.reviewHistory.push({
-            cardId: card.id,
+            cardId: originalCard.id,
             timestamp: Date.now(),
             quality: quality
         });
@@ -579,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     studyMode.addEventListener('change', (e) => setStudyMode(e.target.value));
+    startDailyReviewBtn.addEventListener('click', startDailyReview);
     submitAnswerBtn.addEventListener('click', checkAnswer);
     answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAnswer(); });
     nextQuizBtn.addEventListener('click', handleNextQuizClick);
@@ -588,7 +645,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentCard) return;
             const quality = {'hard': 0, 'good': 3, 'easy': 5}[e.target.dataset.difficulty];
             calculateSM2(currentCard, quality);
+
+            if (isDailyReviewActive) {
+                // Remove the card from the temporary daily deck
+                dailyReviewDeck.shift();
+            }
+
             showCard(getNextCard());
+            updateDailyReviewCount(); // Update the count on the main button
         });
     });
 
@@ -681,6 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeApp() {
         loadAppData();
         setStudyMode(studyMode.value);
+        updateDailyReviewCount();
     }
 
     initializeApp();
