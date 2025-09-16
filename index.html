@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paraphrasing Tool</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- winkNLP (and its model) for Part-of-Speech tagging -->
+    <script src="https://cdn.jsdelivr.net/npm/wink-nlp@1.1.0/dist/wink-nlp-bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/wink-eng-lite-model@1.1.0/dist/wink-eng-lite-model-bundle.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Paraphrasing Tool</h1>
+        <p>Enter your text below to paraphrase it.</p>
+        <textarea id="inputText" placeholder="Enter text here..."></textarea>
+        <div class="controls">
+            <div class="control-group">
+                <label for="mode">Mode:</label>
+                <select id="mode">
+                    <option value="standard">Standard</option>
+                    <option value="creative">Creative</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="level">Level:</label>
+                <input type="range" id="level" min="0" max="100" value="50">
+                <span id="levelValue">50%</span>
+            </div>
+        </div>
+        <button id="paraphraseBtn">Paraphrase</button>
+        <div id="outputContainer">
+            <h2>Paraphrased Text:</h2>
+            <p id="outputText"></p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
