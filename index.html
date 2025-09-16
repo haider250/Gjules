@@ -42,9 +42,11 @@
             <div id="flashcard-container" class="flashcard-container">
                 <div id="flashcard" class="flashcard">
                     <div class="flashcard-front">
+                    <div id="questionMedia" class="media-container"></div>
                         <p id="questionText">Question will appear here.</p>
                     </div>
                     <div class="flashcard-back">
+                    <div id="answerMedia" class="media-container"></div>
                         <p id="answerText">Answer will appear here.</p>
                     </div>
                 </div>
@@ -67,6 +69,7 @@
                 <p id="quiz-score"></p>
             </div>
             <div id="quiz-question-container">
+                <div id="quizQuestionMedia" class="media-container"></div>
                 <p id="quiz-question"></p>
             </div>
             <div id="quiz-options-container">
@@ -100,8 +103,17 @@
 
                 <h3>Add New Card to Selected Deck</h3>
                 <div class="add-card-form">
-                    <textarea id="newCardQuestion" placeholder="Question"></textarea>
-                    <textarea id="newCardAnswer" placeholder="Answer"></textarea>
+                    <textarea id="newCardQuestion" placeholder="Question (required)"></textarea>
+                    <textarea id="newCardAnswer" placeholder="Answer (required)"></textarea>
+                    <details>
+                        <summary>Optional: Add Multimedia URLs</summary>
+                        <div class="multimedia-inputs">
+                            <input type="text" id="newCardQuestionImageUrl" placeholder="Question Image URL">
+                            <input type="text" id="newCardAnswerImageUrl" placeholder="Answer Image URL">
+                            <input type="text" id="newCardQuestionAudioUrl" placeholder="Question Audio URL">
+                            <input type="text" id="newCardAnswerAudioUrl" placeholder="Answer Audio URL">
+                        </div>
+                    </details>
                     <button id="addCardBtn">Add Card</button>
                 </div>
 

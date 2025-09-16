@@ -45,6 +45,7 @@ h1 {
     height: 100%;
     backface-visibility: hidden;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 20px;
@@ -52,6 +53,22 @@ h1 {
     border-radius: 12px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     font-size: 1.5rem;
+    overflow-y: auto;
+}
+
+.media-container {
+    max-height: 50%;
+    margin-bottom: 10px;
+}
+
+.media-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.media-container audio {
+    width: 100%;
 }
 
 .flashcard-front {
@@ -188,6 +205,29 @@ button:hover {
     padding: 8px;
     box-sizing: border-box;
     min-height: 60px;
+}
+
+.add-card-form details {
+    margin-bottom: 10px;
+}
+
+.add-card-form summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #0056b3;
+}
+
+.multimedia-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-top: 10px;
+}
+
+.multimedia-inputs input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
 }
 
 #card-list-container {

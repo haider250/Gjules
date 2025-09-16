@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteDeckBtn = document.getElementById('deleteDeckBtn');
     const newCardQuestionInput = document.getElementById('newCardQuestion');
     const newCardAnswerInput = document.getElementById('newCardAnswer');
+    const newCardQuestionImageUrl = document.getElementById('newCardQuestionImageUrl');
+    const newCardAnswerImageUrl = document.getElementById('newCardAnswerImageUrl');
+    const newCardQuestionAudioUrl = document.getElementById('newCardQuestionAudioUrl');
+    const newCardAnswerAudioUrl = document.getElementById('newCardAnswerAudioUrl');
     const addCardBtn = document.getElementById('addCardBtn');
     const cardListContainer = document.getElementById('card-list-container');
 
@@ -110,10 +114,41 @@ document.addEventListener('DOMContentLoaded', () => {
         noCardsMessage.id = 'no-cards-message';
         recallView.appendChild(noCardsMessage);
 
+        // Clear previous media
+        document.getElementById('questionMedia').innerHTML = '';
+        document.getElementById('answerMedia').innerHTML = '';
+
         if (currentCard) {
             document.getElementById('flashcard-container').style.display = 'block';
             questionText.textContent = currentCard.question;
             answerText.textContent = currentCard.answer;
+
+            // Render Question Media
+            if (currentCard.questionImageUrl) {
+                const img = document.createElement('img');
+                img.src = currentCard.questionImageUrl;
+                document.getElementById('questionMedia').appendChild(img);
+            }
+            if (currentCard.questionAudioUrl) {
+                const audio = document.createElement('audio');
+                audio.src = currentCard.questionAudioUrl;
+                audio.controls = true;
+                document.getElementById('questionMedia').appendChild(audio);
+            }
+
+            // Render Answer Media
+            if (currentCard.answerImageUrl) {
+                const img = document.createElement('img');
+                img.src = currentCard.answerImageUrl;
+                document.getElementById('answerMedia').appendChild(img);
+            }
+            if (currentCard.answerAudioUrl) {
+                const audio = document.createElement('audio');
+                audio.src = currentCard.answerAudioUrl;
+                audio.controls = true;
+                document.getElementById('answerMedia').appendChild(audio);
+            }
+
             flashcard.classList.remove('is-flipped');
             difficultyControls.style.display = 'none';
             interactiveControls.style.display = 'flex';
@@ -187,7 +222,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function showQuizQuestion() {
         quizFeedback.textContent = '';
         nextQuizBtn.style.display = 'none';
+
+        const quizMediaContainer = document.getElementById('quizQuestionMedia');
+        quizMediaContainer.innerHTML = '';
+
         const questionData = quizState.questions[quizState.currentQuestionIndex];
+
+        if (questionData.questionImageUrl) {
+            const img = document.createElement('img');
+            img.src = questionData.questionImageUrl;
+            quizMediaContainer.appendChild(img);
+        }
+        if (questionData.questionAudioUrl) {
+            const audio = document.createElement('audio');
+            audio.src = questionData.questionAudioUrl;
+            audio.controls = true;
+            quizMediaContainer.appendChild(audio);
+        }
+
         quizQuestion.textContent = questionData.question;
         quizProgress.textContent = `Question: ${quizState.currentQuestionIndex + 1} / ${quizState.questions.length}`;
         quizScore.textContent = `Score: ${quizState.score}`;
@@ -278,7 +330,13 @@ document.addEventListener('DOMContentLoaded', () => {
         deck.forEach(card => {
             const cardEl = document.createElement('div');
             cardEl.className = 'card-list-item';
-            cardEl.innerHTML = `<p>${card.question}</p><button class="delete-card-btn" data-card-id="${card.id}">&times;</button>`;
+
+            let mediaIcon = '';
+            if (card.questionImageUrl || card.answerImageUrl || card.questionAudioUrl || card.answerAudioUrl) {
+                mediaIcon = '<span class="media-icon" title="This card contains multimedia">📎</span>';
+            }
+
+            cardEl.innerHTML = `<p>${card.question} ${mediaIcon}</p><button class="delete-card-btn" data-card-id="${card.id}">&times;</button>`;
             cardListContainer.appendChild(cardEl);
         });
     }
@@ -452,12 +510,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const answer = newCardAnswerInput.value.trim();
         const selectedDeckName = deckSelector.value;
         if (question && answer && selectedDeckName) {
-            const newCard = { id: `custom-${Date.now()}`, question, answer, incorrect_answers: [], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() };
+            const newCard = {
+                id: `custom-${Date.now()}`,
+                question,
+                answer,
+                questionImageUrl: newCardQuestionImageUrl.value.trim(),
+                answerImageUrl: newCardAnswerImageUrl.value.trim(),
+                questionAudioUrl: newCardQuestionAudioUrl.value.trim(),
+                answerAudioUrl: newCardAnswerAudioUrl.value.trim(),
+                incorrect_answers: [],
+                repetition: 0,
+                easeFactor: 2.5,
+                interval: 0,
+                dueDate: Date.now()
+            };
             appData.decks[selectedDeckName].push(newCard);
             saveAppData();
             renderCardList(selectedDeckName);
+            // Clear all inputs
             newCardQuestionInput.value = '';
             newCardAnswerInput.value = '';
+            newCardQuestionImageUrl.value = '';
+            newCardAnswerImageUrl.value = '';
+            newCardQuestionAudioUrl.value = '';
+            newCardAnswerAudioUrl.value = '';
         } else { alert('Please fill in both question and answer.'); }
     });
 
