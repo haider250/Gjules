@@ -32,7 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Deck Manager Modal Elements
     const manageDecksBtn = document.getElementById('manageDecksBtn');
     const deckManagerModal = document.getElementById('deckManagerModal');
-    const closeModalBtn = document.querySelector('.close-btn');
+    const closeDeckManagerBtn = deckManagerModal.querySelector('.close-btn');
+
+    // Statistics Modal Elements
+    const statsBtn = document.getElementById('statsBtn');
+    const statsModal = document.getElementById('statsModal');
+    const maturityChartCtx = document.getElementById('maturityChart').getContext('2d');
+    const forecastChartCtx = document.getElementById('forecastChart').getContext('2d');
+    const heatmapContainer = document.getElementById('heatmap-container');
+    const closeStatsModalBtn = statsModal.querySelector('.close-btn');
+
     const newDeckNameInput = document.getElementById('newDeckName');
     const createDeckBtn = document.getElementById('createDeckBtn');
     const importDeckBtn = document.getElementById('importDeckBtn');
@@ -76,6 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeDeckName: 'Sample Deck'
             };
             saveAppData();
+        }
+        if (!appData.reviewHistory) {
+            appData.reviewHistory = [];
         }
     }
 
@@ -196,6 +208,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (card.easeFactor < 1.3) card.easeFactor = 1.3;
         const oneDayInMillis = 24 * 60 * 60 * 1000;
         card.dueDate = Date.now() + card.interval * oneDayInMillis;
+
+        // Record the review event
+        appData.reviewHistory.push({
+            cardId: card.id,
+            timestamp: Date.now(),
+            quality: quality
+        });
+
         saveAppData();
     }
 
@@ -298,6 +318,114 @@ document.addEventListener('DOMContentLoaded', () => {
             quizFeedback.textContent = '';
         }
     }
+
+    // --- Statistics Logic ---
+    function getReviewDataForCalendar() {
+        const reviewsByDay = {};
+        appData.reviewHistory.forEach(review => {
+            const date = new Date(review.timestamp).toISOString().split('T')[0];
+            if (!reviewsByDay[date]) {
+                reviewsByDay[date] = 0;
+            }
+            reviewsByDay[date]++;
+        });
+        return reviewsByDay;
+    }
+
+    function getCardMaturityData() {
+        const maturity = { new: 0, learning: 0, mature: 0 };
+        const allCards = Object.values(appData.decks).flat();
+        allCards.forEach(card => {
+            if (card.interval >= 21) {
+                maturity.mature++;
+            } else if (card.interval >= 1) {
+                maturity.learning++;
+            } else {
+                maturity.new++;
+            }
+        });
+        return maturity;
+    }
+
+    function getUpcomingReviewsData() {
+        const forecast = Array(7).fill(0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const oneDayInMillis = 24 * 60 * 60 * 1000;
+
+        const allCards = Object.values(appData.decks).flat();
+        allCards.forEach(card => {
+            const diff = card.dueDate - today.getTime();
+            if (diff >= 0 && diff < 7 * oneDayInMillis) {
+                const dayIndex = Math.floor(diff / oneDayInMillis);
+                forecast[dayIndex]++;
+            }
+        });
+        return forecast;
+    }
+
+    let maturityChartInstance, forecastChartInstance;
+
+    function renderStatistics() {
+        const maturityData = getCardMaturityData();
+        const forecastData = getUpcomingReviewsData();
+
+        if (maturityChartInstance) maturityChartInstance.destroy();
+        maturityChartInstance = new Chart(maturityChartCtx, {
+            type: 'pie',
+            data: {
+                labels: ['New', 'Learning', 'Mature'],
+                datasets: [{
+                    label: 'Card Maturity',
+                    data: [maturityData.new, maturityData.learning, maturityData.mature],
+                    backgroundColor: ['#36a2eb', '#ffcd56', '#4bc0c0'],
+                }]
+            },
+        });
+
+        if (forecastChartInstance) forecastChartInstance.destroy();
+        forecastChartInstance = new Chart(forecastChartCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Today', '+1 Day', '+2 Days', '+3 Days', '+4 Days', '+5 Days', '+6 Days'],
+                datasets: [{
+                    label: 'Upcoming Reviews',
+                    data: forecastData,
+                    backgroundColor: '#ff6384',
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // Simple heatmap rendering (can be improved later)
+        const heatmapData = getReviewDataForCalendar();
+        heatmapContainer.innerHTML = 'Last 30 days of reviews:<br>';
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dateString = date.toISOString().split('T')[0];
+            const count = heatmapData[dateString] || 0;
+            const cell = document.createElement('span');
+            cell.style.display = 'inline-block';
+            cell.style.width = '20px';
+            cell.style.height = '20px';
+            cell.style.backgroundColor = `rgba(0, 123, 255, ${Math.min(count / 10, 1)})`;
+            cell.title = `${dateString}: ${count} reviews`;
+            heatmapContainer.appendChild(cell);
+        }
+    }
+
+    function openStatsModal() {
+        statsModal.style.display = 'block';
+        renderStatistics();
+    }
+
+    function closeStatsModal() {
+        statsModal.style.display = 'none';
+    }
+
 
     // --- Deck Management Modal Logic ---
     function openDeckManager() {
@@ -471,7 +599,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     manageDecksBtn.addEventListener('click', openDeckManager);
-    closeModalBtn.addEventListener('click', closeDeckManager);
+    closeDeckManagerBtn.addEventListener('click', closeDeckManager);
+    statsBtn.addEventListener('click', openStatsModal);
+    closeStatsModalBtn.addEventListener('click', closeStatsModal);
     exportDeckBtn.addEventListener('click', exportDeck);
     importDeckBtn.addEventListener('click', () => importDeckInput.click());
     importDeckInput.addEventListener('change', importDeck);

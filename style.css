@@ -359,3 +359,28 @@ button:hover {
     font-weight: bold;
     font-size: 1.2rem;
 }
+
+/* Statistics Modal Styles */
+#statsBtn {
+    background-color: #17a2b8;
+}
+#statsBtn:hover {
+    background-color: #138496;
+}
+
+.stats-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+.stat-item {
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+#heatmap-container {
+    /* Basic styles for now, will be populated by JS */
+    overflow-x: auto;
+}
