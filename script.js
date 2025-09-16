@@ -1,16 +1,33 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
+    const deckNameDisplay = document.getElementById('deckNameDisplay');
+    const studyMode = document.getElementById('studyMode');
+    const recallView = document.getElementById('recall-view');
+    const quizView = document.getElementById('quiz-view');
+
+    // Recall View Elements
     const flashcard = document.getElementById('flashcard');
     const questionText = document.getElementById('questionText');
     const answerText = document.getElementById('answerText');
-    const flipBtn = document.getElementById('flipBtn');
     const difficultyControls = document.getElementById('difficulty-controls');
     const difficultyButtons = document.querySelectorAll('.difficulty-btn');
-    const flashcardContainer = document.getElementById('flashcard-container');
+    const interactiveControls = document.getElementById('interactive-controls');
+    const answerInput = document.getElementById('answerInput');
+    const submitAnswerBtn = document.getElementById('submitAnswerBtn');
+    const answerResult = document.getElementById('answerResult');
+
+    // Quiz View Elements
+    const quizProgress = document.getElementById('quiz-progress');
+    const quizScore = document.getElementById('quiz-score');
+    const quizQuestion = document.getElementById('quiz-question');
+    const quizOptionsContainer = document.getElementById('quiz-options-container');
+    const quizFeedback = document.getElementById('quiz-feedback');
+    const nextQuizBtn = document.getElementById('next-quiz-btn');
+
+    // Deck Loader Elements
     const categorySelector = document.getElementById('categorySelector');
     const loadDeckBtn = document.getElementById('loadDeckBtn');
     const loader = document.getElementById('loader');
-    const deckNameDisplay = document.getElementById('deckNameDisplay');
 
     // Deck Manager Modal Elements
     const manageDecksBtn = document.getElementById('manageDecksBtn');
@@ -18,7 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.querySelector('.close-btn');
     const newDeckNameInput = document.getElementById('newDeckName');
     const createDeckBtn = document.getElementById('createDeckBtn');
+    const importDeckBtn = document.getElementById('importDeckBtn');
+    const importDeckInput = document.getElementById('importDeckInput');
     const deckSelector = document.getElementById('deckSelector');
+    const exportDeckBtn = document.getElementById('exportDeckBtn');
     const deleteDeckBtn = document.getElementById('deleteDeckBtn');
     const newCardQuestionInput = document.getElementById('newCardQuestion');
     const newCardAnswerInput = document.getElementById('newCardAnswer');
@@ -27,8 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let appData = {};
     let currentCard = null;
+    let quizState = {};
 
-    // --- Data Management ---
+    // --- Data & State Management ---
     function saveAppData() {
         localStorage.setItem('flashcardAppData', JSON.stringify(appData));
     }
@@ -37,25 +58,95 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedData = localStorage.getItem('flashcardAppData');
         if (storedData) {
             appData = JSON.parse(storedData);
+            Object.values(appData.decks).forEach(deck => {
+                deck.forEach(card => {
+                    if (!card.incorrect_answers) card.incorrect_answers = [];
+                });
+            });
         } else {
             appData = {
-                decks: {
-                    'Sample Deck': [
-                        { id: 'sample-1', question: 'Welcome! This is a sample card. What is the capital of France?', answer: 'Paris', repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
-                        { id: 'sample-2', question: 'You can load new decks from the trivia API below or create your own in "Manage Decks".', answer: 'Let\'s get learning!', repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
-                    ]
-                },
+                decks: { 'Sample Deck': [
+                    { id: 'sample-1', question: 'Welcome! What is the capital of France?', answer: 'Paris', incorrect_answers: ['London', 'Berlin', 'Madrid'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
+                    { id: 'sample-2', question: 'This app now has a Quiz Mode. What is 2 + 2?', answer: '4', incorrect_answers: ['3', '5', '6'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
+                ]},
                 activeDeckName: 'Sample Deck'
             };
             saveAppData();
         }
     }
 
-    function updateDeckNameDisplay() {
+    // --- View Switching ---
+    function setStudyMode(mode) {
+        if (mode === 'recall') {
+            quizView.style.display = 'none';
+            recallView.style.display = 'block';
+            showCard(getNextCard());
+        } else if (mode === 'quiz') {
+            recallView.style.display = 'none';
+            quizView.style.display = 'block';
+            startQuiz();
+        }
+    }
+
+    // --- Recall Mode Logic ---
+    function getNextCard() {
+        const activeDeck = appData.decks[appData.activeDeckName];
+        if (!activeDeck || activeDeck.length === 0) return null;
+        const now = Date.now();
+        const dueCards = activeDeck.filter(card => card.dueDate <= now);
+        if (dueCards.length > 0) {
+            dueCards.sort((a, b) => a.dueDate - b.dueDate);
+            return dueCards[0];
+        }
+        return null;
+    }
+
+    function showCard(card) {
+        currentCard = card;
+        answerResult.style.display = 'none';
+        answerResult.className = 'answer-result';
+        interactiveControls.style.display = 'none';
+        const noCardsMessage = document.getElementById('no-cards-message') || document.createElement('p');
+        noCardsMessage.id = 'no-cards-message';
+        recallView.appendChild(noCardsMessage);
+
+        if (currentCard) {
+            document.getElementById('flashcard-container').style.display = 'block';
+            questionText.textContent = currentCard.question;
+            answerText.textContent = currentCard.answer;
+            flashcard.classList.remove('is-flipped');
+            difficultyControls.style.display = 'none';
+            interactiveControls.style.display = 'flex';
+            answerInput.value = '';
+            noCardsMessage.style.display = 'none';
+            setTimeout(() => answerInput.focus(), 100);
+        } else {
+            interactiveControls.style.display = 'none';
+            difficultyControls.style.display = 'none';
+            document.getElementById('flashcard-container').style.display = 'none';
+            noCardsMessage.textContent = `No cards due for review in "${appData.activeDeckName}". Great job!`;
+            noCardsMessage.style.display = 'block';
+        }
         deckNameDisplay.textContent = `Current Deck: ${appData.activeDeckName}`;
     }
 
-    // --- Core Review Logic (SM2, Card Selection, etc.) ---
+    function checkAnswer() {
+        if (!currentCard) return;
+        const userAnswer = answerInput.value.trim().toLowerCase();
+        const correctAnswer = currentCard.answer.trim().toLowerCase();
+        interactiveControls.style.display = 'none';
+        answerResult.style.display = 'block';
+        if (userAnswer === correctAnswer) {
+            answerResult.textContent = 'Correct!';
+            answerResult.classList.add('correct');
+        } else {
+            answerResult.textContent = `Incorrect. The correct answer was: ${currentCard.answer}`;
+            answerResult.classList.add('incorrect');
+        }
+        flashcard.classList.add('is-flipped');
+        difficultyControls.style.display = 'flex';
+    }
+
     function calculateSM2(card, quality) {
         if (quality < 3) {
             card.repetition = 0;
@@ -73,40 +164,87 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAppData();
     }
 
-    function getNextCard() {
+    // --- Quiz Mode Logic ---
+    function startQuiz() {
+        recallView.style.display = 'none';
+        quizView.style.display = 'block';
         const activeDeck = appData.decks[appData.activeDeckName];
-        if (!activeDeck || activeDeck.length === 0) return null;
-        const now = Date.now();
-        const dueCards = activeDeck.filter(card => card.dueDate <= now);
-        if (dueCards.length > 0) {
-            dueCards.sort((a, b) => a.dueDate - b.dueDate);
-            return dueCards[0];
+        if (!activeDeck || activeDeck.length < 4) {
+            quizQuestion.textContent = 'Quiz mode requires at least 4 cards in the deck.';
+            quizOptionsContainer.innerHTML = '';
+            quizProgress.textContent = '';
+            quizScore.textContent = '';
+            return;
         }
-        return null;
+        quizState = {
+            questions: [...activeDeck].sort(() => 0.5 - Math.random()),
+            currentQuestionIndex: 0,
+            score: 0,
+        };
+        showQuizQuestion();
     }
 
-    function showCard(card) {
-        currentCard = card;
-        const noCardsMessage = document.getElementById('no-cards-message') || document.createElement('p');
-        noCardsMessage.id = 'no-cards-message';
-        document.querySelector('.container').appendChild(noCardsMessage);
+    function showQuizQuestion() {
+        quizFeedback.textContent = '';
+        nextQuizBtn.style.display = 'none';
+        const questionData = quizState.questions[quizState.currentQuestionIndex];
+        quizQuestion.textContent = questionData.question;
+        quizProgress.textContent = `Question: ${quizState.currentQuestionIndex + 1} / ${quizState.questions.length}`;
+        quizScore.textContent = `Score: ${quizState.score}`;
 
-        if (currentCard) {
-            flashcardContainer.style.display = 'block';
-            questionText.textContent = currentCard.question;
-            answerText.textContent = currentCard.answer;
-            flashcard.classList.remove('is-flipped');
-            difficultyControls.style.display = 'none';
-            flipBtn.style.display = 'block';
-            noCardsMessage.style.display = 'none';
-        } else {
-            flashcardContainer.style.display = 'none';
-            flipBtn.style.display = 'none';
-            difficultyControls.style.display = 'none';
-            noCardsMessage.textContent = `No cards due for review in "${appData.activeDeckName}". Great job!`;
-            noCardsMessage.style.display = 'block';
+        const options = generateQuizOptions(questionData);
+        quizOptionsContainer.innerHTML = '';
+        options.forEach(optionText => {
+            const optionBtn = document.createElement('button');
+            optionBtn.className = 'quiz-option-btn';
+            optionBtn.textContent = optionText;
+            optionBtn.addEventListener('click', handleOptionClick);
+            quizOptionsContainer.appendChild(optionBtn);
+        });
+    }
+
+    function generateQuizOptions(card) {
+        let options = [...card.incorrect_answers];
+        if (options.length < 3) {
+            const otherAnswers = appData.decks[appData.activeDeckName]
+                .filter(c => c.id !== card.id)
+                .map(c => c.answer);
+            options = [...new Set([...options, ...otherAnswers])];
         }
-        updateDeckNameDisplay();
+        options = options.sort(() => 0.5 - Math.random()).slice(0, 3);
+        options.push(card.answer);
+        return options.sort(() => 0.5 - Math.random());
+    }
+
+    function handleOptionClick(e) {
+        const selectedBtn = e.target;
+        const selectedAnswer = selectedBtn.textContent;
+        const correctAnswer = quizState.questions[quizState.currentQuestionIndex].answer;
+
+        document.querySelectorAll('.quiz-option-btn').forEach(btn => btn.disabled = true);
+
+        if (selectedAnswer === correctAnswer) {
+            selectedBtn.classList.add('correct');
+            quizFeedback.textContent = 'Correct!';
+            quizState.score++;
+        } else {
+            selectedBtn.classList.add('incorrect');
+            quizFeedback.textContent = `Incorrect! The answer was: ${correctAnswer}`;
+        }
+        quizScore.textContent = `Score: ${quizState.score}`;
+        nextQuizBtn.style.display = 'block';
+    }
+
+    function handleNextQuizClick() {
+        quizState.currentQuestionIndex++;
+        if (quizState.currentQuestionIndex < quizState.questions.length) {
+            showQuizQuestion();
+        } else {
+            quizQuestion.textContent = 'Quiz Complete!';
+            quizOptionsContainer.innerHTML = `You scored ${quizState.score} out of ${quizState.questions.length}.`;
+            nextQuizBtn.style.display = 'none';
+            quizFeedback.textContent = '';
+        }
     }
 
     // --- Deck Management Modal Logic ---
@@ -117,22 +255,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeDeckManager() {
         deckManagerModal.style.display = 'none';
-        // Refresh the main view in case the active deck was changed/deleted
-        const nextCard = getNextCard();
-        showCard(nextCard);
+        setStudyMode(studyMode.value);
     }
 
     function populateDeckSelector() {
+        const currentDeck = deckSelector.value || appData.activeDeckName;
         deckSelector.innerHTML = '';
         for (const deckName in appData.decks) {
             const option = document.createElement('option');
             option.value = deckName;
             option.textContent = deckName;
-            if (deckName === appData.activeDeckName) {
-                option.selected = true;
-            }
             deckSelector.appendChild(option);
         }
+        deckSelector.value = appData.decks[currentDeck] ? currentDeck : appData.activeDeckName;
         renderCardList(deckSelector.value);
     }
 
@@ -140,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cardListContainer.innerHTML = '';
         const deck = appData.decks[deckName];
         if (!deck) return;
-
         deck.forEach(card => {
             const cardEl = document.createElement('div');
             cardEl.className = 'card-list-item';
@@ -149,12 +283,87 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function exportDeck() {
+        const deckNameToExport = deckSelector.value;
+        const deck = appData.decks[deckNameToExport];
+        if (!deck) {
+            alert('Could not find the selected deck to export.');
+            return;
+        }
+
+        // Create a Blob from the JSON data
+        const dataStr = JSON.stringify(deck, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+
+        // Create a temporary link to trigger the download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${deckNameToExport.replace(/\s+/g, '-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importDeck(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const deckData = JSON.parse(e.target.result);
+
+                // Basic validation
+                if (!Array.isArray(deckData) || deckData.some(card => !card.question || !card.answer)) {
+                    throw new Error('Invalid deck format.');
+                }
+
+                let deckName = file.name.replace(/\.json$/, '').replace(/[-_]/g, ' ');
+                let originalDeckName = deckName;
+                let counter = 1;
+                while (appData.decks[deckName]) {
+                    deckName = `${originalDeckName} (${counter++})`;
+                }
+
+                // Sanitize and add default values to imported cards
+                appData.decks[deckName] = deckData.map(card => ({
+                    ...card,
+                    id: `imported-${Date.now()}-${Math.random()}`,
+                    repetition: 0,
+                    easeFactor: 2.5,
+                    interval: 0,
+                    dueDate: Date.now(),
+                    incorrect_answers: card.incorrect_answers || [],
+                }));
+
+                appData.activeDeckName = deckName;
+                saveAppData();
+                populateDeckSelector();
+                alert(`Deck "${deckName}" imported successfully!`);
+
+            } catch (error) {
+                alert('Failed to import deck. Please make sure it is a valid JSON file with the correct structure.');
+                console.error("Error importing deck:", error);
+            } finally {
+                // Reset file input to allow importing the same file again
+                importDeckInput.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
     // --- API Integration ---
     async function fetchNewDeck(categoryId, categoryName) {
         loader.style.display = 'block';
         loadDeckBtn.disabled = true;
         try {
-            const response = await fetch(`https://opentdb.com/api.php?amount=10&category=${categoryId}`);
+            const response = await fetch(`https://opentdb.com/api.php?amount=10&type=multiple&category=${categoryId}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             if (data.response_code !== 0) {
@@ -166,12 +375,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: `${categoryId}-${Date.now()}-${index}`,
                 question: new DOMParser().parseFromString(item.question, "text/html").documentElement.textContent,
                 answer: new DOMParser().parseFromString(item.correct_answer, "text/html").documentElement.textContent,
+                incorrect_answers: item.incorrect_answers.map(ia => new DOMParser().parseFromString(ia, "text/html").documentElement.textContent),
                 repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(),
             }));
             appData.activeDeckName = newDeckName;
             saveAppData();
-            const nextCard = getNextCard();
-            showCard(nextCard);
+            studyMode.value = 'quiz';
+            setStudyMode('quiz');
         } catch (error) {
             console.error("Failed to fetch new deck:", error);
             alert("Failed to load new deck. Please check your connection and try again.");
@@ -182,8 +392,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
-    // Main review controls
-    flipBtn.addEventListener('click', () => { if (currentCard) { flashcard.classList.add('is-flipped'); difficultyControls.style.display = 'flex'; flipBtn.style.display = 'none'; }});
+    studyMode.addEventListener('change', (e) => setStudyMode(e.target.value));
+    submitAnswerBtn.addEventListener('click', checkAnswer);
+    answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAnswer(); });
+    nextQuizBtn.addEventListener('click', handleNextQuizClick);
+
     difficultyButtons.forEach(button => {
         button.addEventListener('click', (e) => {
             if (!currentCard) return;
@@ -192,21 +405,26 @@ document.addEventListener('DOMContentLoaded', () => {
             showCard(getNextCard());
         });
     });
+
     loadDeckBtn.addEventListener('click', () => {
         const selectedCategory = categorySelector.value;
         const selectedCategoryName = categorySelector.options[categorySelector.selectedIndex].text;
         fetchNewDeck(selectedCategory, selectedCategoryName);
     });
 
-    // Deck manager controls
     manageDecksBtn.addEventListener('click', openDeckManager);
     closeModalBtn.addEventListener('click', closeDeckManager);
+    exportDeckBtn.addEventListener('click', exportDeck);
+    importDeckBtn.addEventListener('click', () => importDeckInput.click());
+    importDeckInput.addEventListener('change', importDeck);
+
     deckSelector.addEventListener('change', () => {
-        const selectedDeck = deckSelector.value;
-        appData.activeDeckName = selectedDeck;
+        appData.activeDeckName = deckSelector.value;
         saveAppData();
-        renderCardList(selectedDeck);
+        renderCardList(deckSelector.value);
+        setStudyMode(studyMode.value);
     });
+
     createDeckBtn.addEventListener('click', () => {
         const newName = newDeckNameInput.value.trim();
         if (newName && !appData.decks[newName]) {
@@ -215,59 +433,48 @@ document.addEventListener('DOMContentLoaded', () => {
             saveAppData();
             populateDeckSelector();
             newDeckNameInput.value = '';
-        } else {
-            alert('Deck name cannot be empty or already exist.');
-        }
+        } else { alert('Deck name cannot be empty or already exist.'); }
     });
+
     deleteDeckBtn.addEventListener('click', () => {
+        if (Object.keys(appData.decks).length <= 1) { alert("Cannot delete the last remaining deck."); return; }
         const deckToDelete = deckSelector.value;
-        if (Object.keys(appData.decks).length <= 1) {
-            alert("Cannot delete the last remaining deck.");
-            return;
-        }
         if (confirm(`Are you sure you want to delete the deck "${deckToDelete}"?`)) {
             delete appData.decks[deckToDelete];
-            appData.activeDeckName = Object.keys(appData.decks)[0]; // Switch to first available deck
+            appData.activeDeckName = Object.keys(appData.decks)[0];
             saveAppData();
             populateDeckSelector();
         }
     });
+
     addCardBtn.addEventListener('click', () => {
         const question = newCardQuestionInput.value.trim();
         const answer = newCardAnswerInput.value.trim();
         const selectedDeckName = deckSelector.value;
         if (question && answer && selectedDeckName) {
-            const newCard = {
-                id: `custom-${Date.now()}`,
-                question, answer, repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now()
-            };
+            const newCard = { id: `custom-${Date.now()}`, question, answer, incorrect_answers: [], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() };
             appData.decks[selectedDeckName].push(newCard);
             saveAppData();
             renderCardList(selectedDeckName);
             newCardQuestionInput.value = '';
             newCardAnswerInput.value = '';
-        } else {
-            alert('Please fill in both question and answer.');
-        }
+        } else { alert('Please fill in both question and answer.'); }
     });
+
     cardListContainer.addEventListener('click', (e) => {
         if (e.target.classList.contains('delete-card-btn')) {
             const cardId = e.target.dataset.cardId;
             const selectedDeckName = deckSelector.value;
             const deck = appData.decks[selectedDeckName];
             const cardIndex = deck.findIndex(card => card.id === cardId);
-            if (cardIndex > -1) {
-                deck.splice(cardIndex, 1);
-                saveAppData();
-                renderCardList(selectedDeckName);
-            }
+            if (cardIndex > -1) { deck.splice(cardIndex, 1); saveAppData(); renderCardList(selectedDeckName); }
         }
     });
 
     // --- Initial Load ---
     function initializeApp() {
         loadAppData();
-        showCard(getNextCard());
+        setStudyMode(studyMode.value);
     }
 
     initializeApp();
