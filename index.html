@@ -3,35 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paraphrasing Tool</title>
+    <title>Flashcard App</title>
     <link rel="stylesheet" href="style.css">
-    <!-- winkNLP (and its model) for Part-of-Speech tagging -->
-    <script src="https://cdn.jsdelivr.net/npm/wink-nlp@1.1.0/dist/wink-nlp-bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/wink-eng-lite-model@1.1.0/dist/wink-eng-lite-model-bundle.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Paraphrasing Tool</h1>
-        <p>Enter your text below to paraphrase it.</p>
-        <textarea id="inputText" placeholder="Enter text here..."></textarea>
-        <div class="controls">
-            <div class="control-group">
-                <label for="mode">Mode:</label>
-                <select id="mode">
-                    <option value="standard">Standard</option>
-                    <option value="creative">Creative</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="level">Level:</label>
-                <input type="range" id="level" min="0" max="100" value="50">
-                <span id="levelValue">50%</span>
+        <h1>Flashcard Pro</h1>
+
+        <div class="deck-loader">
+            <select id="categorySelector">
+                <option value="9">General Knowledge</option>
+                <option value="17">Science & Nature</option>
+                <option value="20">Mythology</option>
+                <option value="21">Sports</option>
+                <option value="22">Geography</option>
+                <option value="23">History</option>
+                <option value="26">Celebrities</option>
+                <option value="27">Animals</option>
+                <option value="28">Vehicles</option>
+            </select>
+            <button id="loadDeckBtn">Load New Deck</button>
+            <button id="manageDecksBtn">Manage Decks</button>
+            <div id="loader" class="loader" style="display: none;"></div>
+        </div>
+
+        <h2 id="deckNameDisplay"></h2>
+
+        <div id="flashcard-container" class="flashcard-container">
+            <div id="flashcard" class="flashcard">
+                <div class="flashcard-front">
+                    <p id="questionText">Question will appear here.</p>
+                </div>
+                <div class="flashcard-back">
+                    <p id="answerText">Answer will appear here.</p>
+                </div>
             </div>
         </div>
-        <button id="paraphraseBtn">Paraphrase</button>
-        <div id="outputContainer">
-            <h2>Paraphrased Text:</h2>
-            <p id="outputText"></p>
+        <div class="controls">
+            <button id="flipBtn">Flip</button>
+        </div>
+        <div id="difficulty-controls" class="difficulty-controls" style="display: none;">
+            <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+            <button class="difficulty-btn" data-difficulty="good">Good</button>
+            <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+        </div>
+
+        <!-- Deck Management Modal -->
+        <div id="deckManagerModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Deck Management</h2>
+
+                <div class="deck-actions">
+                    <input type="text" id="newDeckName" placeholder="New Deck Name">
+                    <button id="createDeckBtn">Create Deck</button>
+                </div>
+
+                <div class="deck-selection">
+                    <label for="deckSelector">Select Deck:</label>
+                    <select id="deckSelector"></select>
+                    <button id="deleteDeckBtn">Delete Selected Deck</button>
+                </div>
+
+                <hr>
+
+                <h3>Add New Card to Selected Deck</h3>
+                <div class="add-card-form">
+                    <textarea id="newCardQuestion" placeholder="Question"></textarea>
+                    <textarea id="newCardAnswer" placeholder="Answer"></textarea>
+                    <button id="addCardBtn">Add Card</button>
+                </div>
+
+                <h3>Cards in Selected Deck</h3>
+                <div id="card-list-container">
+                    <!-- Cards will be dynamically inserted here -->
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
