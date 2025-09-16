@@ -26,8 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Deck Loader Elements
     const categorySelector = document.getElementById('categorySelector');
+    const amountSelector = document.getElementById('amountSelector');
     const loadDeckBtn = document.getElementById('loadDeckBtn');
     const loader = document.getElementById('loader');
+    const loaderText = document.getElementById('loader-text');
 
     // Daily Review Elements
     const startDailyReviewBtn = document.getElementById('start-daily-review-btn');
@@ -70,6 +72,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const createDeckBtn = document.getElementById('createDeckBtn');
     const importDeckBtn = document.getElementById('importDeckBtn');
     const importDeckInput = document.getElementById('importDeckInput');
+    const importTxtBtn = document.getElementById('importTxtBtn');
+    const importTxtInput = document.getElementById('importTxtInput');
+    const txtSeparator = document.getElementById('txtSeparator');
+    const importPdfBtn = document.getElementById('importPdfBtn');
+    const importPdfInput = document.getElementById('importPdfInput');
+    const importDocxBtn = document.getElementById('importDocxBtn');
+    const importDocxInput = document.getElementById('importDocxInput');
     const deckSelector = document.getElementById('deckSelector');
     const exportDeckBtn = document.getElementById('exportDeckBtn');
     const deleteDeckBtn = document.getElementById('deleteDeckBtn');
@@ -701,16 +710,150 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
 
+    function createDeckFromText(text, fileName) {
+        const separator = txtSeparator.value.trim();
+        if (!separator) {
+            alert('Please provide a separator.');
+            return;
+        }
+
+        const parts = text.split(separator);
+        const cards = [];
+        for (let i = 0; i < parts.length - 1; i += 2) {
+            const question = parts[i].trim();
+            const answer = parts[i + 1].trim();
+            if (question && answer) {
+                cards.push({
+                    id: `file-${Date.now()}-${cards.length}`,
+                    question,
+                    answer,
+                    incorrect_answers: [],
+                    repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false,
+                });
+            }
+        }
+
+        if (cards.length === 0) {
+            throw new Error('No valid card pairs found. Make sure your file is formatted correctly with the separator.');
+        }
+
+        let deckName = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        let originalDeckName = deckName; let counter = 1;
+        while (appData.decks[deckName]) deckName = `${originalDeckName} (${counter++})`;
+
+        appData.decks[deckName] = cards;
+        appData.activeDeckName = deckName;
+        saveAppData();
+        populateDeckSelector();
+        alert(`Deck "${deckName}" with ${cards.length} cards imported successfully!`);
+    }
+
+    function importDeckFromTxt(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                createDeckFromText(e.target.result, file.name);
+            } catch (error) {
+                alert('Failed to import deck from text file. ' + error.message);
+                console.error(error);
+            } finally {
+                importTxtInput.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handlePdfUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const pdfData = new Uint8Array(e.target.result);
+                const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+                createDeckFromText(fullText.trim(), file.name);
+            } catch (error) {
+                alert('Failed to import deck from PDF. ' + error.message);
+                console.error(error);
+            } finally {
+                importPdfInput.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function handleDocxUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const arrayBuffer = e.target.result;
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                createDeckFromText(result.value, file.name);
+            } catch (error) {
+                alert('Failed to import deck from DOCX file. ' + error.message);
+                console.error(error);
+            } finally {
+                importDocxInput.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
     // --- API Integration ---
-    async function fetchNewDeck(categoryId, categoryName) {
-        loader.style.display = 'block'; loadDeckBtn.disabled = true;
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function fetchNewDeck(categoryId, categoryName, amount) {
+        loader.style.display = 'flex'; loadDeckBtn.disabled = true;
+        loaderText.textContent = '';
+        let allResults = [];
+
         try {
-            const response = await fetch(`https://opentdb.com/api.php?amount=10&type=multiple&category=${categoryId}`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            if (data.response_code !== 0) { alert('Could not fetch new questions.'); return; }
-            const newDeckName = `Trivia: ${categoryName}`;
-            appData.decks[newDeckName] = data.results.map((item, index) => ({
+            const numAmount = parseInt(amount, 10);
+            const maxPerRequest = 50;
+            let requestsNeeded = Math.ceil(numAmount / maxPerRequest);
+            let amountRemaining = numAmount;
+
+            for (let i = 0; i < requestsNeeded; i++) {
+                const amountToFetch = Math.min(maxPerRequest, amountRemaining);
+                loaderText.textContent = `Loading ${allResults.length} of ${numAmount}...`;
+
+                const response = await fetch(`https://opentdb.com/api.php?amount=${amountToFetch}&type=multiple&category=${categoryId}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const data = await response.json();
+                if (data.response_code === 1) {
+                    alert('Not enough questions in this category to fulfill the request. The deck will be created with the questions found.');
+                    break;
+                }
+                if (data.response_code !== 0) {
+                    throw new Error(`API returned response code ${data.response_code}`);
+                }
+
+                allResults.push(...data.results);
+                amountRemaining -= amountToFetch;
+
+                if (i < requestsNeeded - 1) {
+                    await sleep(5000); // Wait 5 seconds to respect rate limit
+                }
+            }
+
+            if(allResults.length === 0) {
+                alert('Could not fetch any new questions.');
+                return;
+            }
+
+            const newDeckName = `Trivia: ${categoryName} (${allResults.length} cards)`;
+            appData.decks[newDeckName] = allResults.map((item, index) => ({
                 id: `${categoryId}-${Date.now()}-${index}`,
                 question: new DOMParser().parseFromString(item.question, "text/html").documentElement.textContent,
                 answer: new DOMParser().parseFromString(item.correct_answer, "text/html").documentElement.textContent,
@@ -720,9 +863,10 @@ document.addEventListener('DOMContentLoaded', () => {
             appData.activeDeckName = newDeckName;
             saveAppData(); studyMode.value = 'quiz'; setStudyMode('quiz');
         } catch (error) {
-            console.error(error); alert("Failed to load new deck.");
+            console.error(error); alert("Failed to load new deck. " + error.message);
         } finally {
             loader.style.display = 'none'; loadDeckBtn.disabled = false;
+            loaderText.textContent = '';
         }
     }
 
@@ -744,7 +888,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    loadDeckBtn.addEventListener('click', () => fetchNewDeck(categorySelector.value, categorySelector.options[categorySelector.selectedIndex].text));
+    loadDeckBtn.addEventListener('click', () => {
+        const categoryId = categorySelector.value;
+        const categoryName = categorySelector.options[categorySelector.selectedIndex].text;
+        const amount = amountSelector.value;
+        fetchNewDeck(categoryId, categoryName, amount);
+    });
     manageDecksBtn.addEventListener('click', openDeckManager);
     closeDeckManagerBtn.addEventListener('click', closeDeckManager);
     statsBtn.addEventListener('click', openStatsModal);
@@ -757,6 +906,12 @@ document.addEventListener('DOMContentLoaded', () => {
     exportDeckBtn.addEventListener('click', exportDeck);
     importDeckBtn.addEventListener('click', () => importDeckInput.click());
     importDeckInput.addEventListener('change', importDeck);
+    importTxtBtn.addEventListener('click', () => importTxtInput.click());
+    importTxtInput.addEventListener('change', importDeckFromTxt);
+    importPdfBtn.addEventListener('click', () => importPdfInput.click());
+    importPdfInput.addEventListener('change', handlePdfUpload);
+    importDocxBtn.addEventListener('click', () => importDocxInput.click());
+    importDocxInput.addEventListener('change', handleDocxUpload);
 
     leechManagerBtn.addEventListener('click', openLeechListModal);
     closeLeechListModalBtn.addEventListener('click', closeLeechListModal);

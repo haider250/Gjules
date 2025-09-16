@@ -22,21 +22,45 @@
         <div class="deck-loader">
             <select id="categorySelector">
                 <option value="9">General Knowledge</option>
+                <option value="10">Entertainment: Books</option>
+                <option value="11">Entertainment: Film</option>
+                <option value="12">Entertainment: Music</option>
+                <option value="13">Entertainment: Musicals & Theatres</option>
+                <option value="14">Entertainment: Television</option>
+                <option value="15">Entertainment: Video Games</option>
+                <option value="16">Entertainment: Board Games</option>
                 <option value="17">Science & Nature</option>
+                <option value="18">Science: Computers</option>
+                <option value="19">Science: Mathematics</option>
                 <option value="20">Mythology</option>
                 <option value="21">Sports</option>
                 <option value="22">Geography</option>
                 <option value="23">History</option>
+                <option value="24">Politics</option>
+                <option value="25">Art</option>
                 <option value="26">Celebrities</option>
                 <option value="27">Animals</option>
                 <option value="28">Vehicles</option>
+                <option value="29">Entertainment: Comics</option>
+                <option value="30">Science: Gadgets</option>
+                <option value="31">Entertainment: Japanese Anime & Manga</option>
+                <option value="32">Entertainment: Cartoon & Animations</option>
+            </select>
+            <select id="amountSelector">
+                <option value="10">10 Questions</option>
+                <option value="25">25 Questions</option>
+                <option value="50">50 Questions</option>
+                <option value="100">100 Questions</option>
             </select>
             <button id="loadDeckBtn">Load New Deck</button>
             <button id="manageDecksBtn">Manage Decks</button>
             <button id="statsBtn">Statistics</button>
             <button id="achievementsBtn">Achievements</button>
             <button id="leechManagerBtn">Manage Leeches (<span id="leech-count">0</span>)</button>
-            <div id="loader" class="loader" style="display: none;"></div>
+            <div id="loader" class="loader-container" style="display: none;">
+                <div class="loader"></div>
+                <span id="loader-text"></span>
+            </div>
         </div>
 
         <div class="deck-meta">
@@ -100,9 +124,26 @@
                 <div class="deck-actions">
                     <input type="text" id="newDeckName" placeholder="New Deck Name">
                     <button id="createDeckBtn">Create Deck</button>
-                    <button id="importDeckBtn">Import Deck</button>
-                    <input type="file" id="importDeckInput" accept=".json" style="display: none;">
                 </div>
+
+                <hr>
+
+                <h3>Import & Export</h3>
+                <div class="deck-actions">
+                    <button id="importDeckBtn">Import from JSON</button>
+                    <input type="file" id="importDeckInput" accept=".json" style="display: none;">
+                    <button id="exportDeckBtn">Export to JSON</button>
+                </div>
+                <div class="deck-actions">
+                    <button id="importTxtBtn">Import from .txt</button>
+                    <input type="file" id="importTxtInput" accept=".txt" style="display: none;">
+                    <input type="text" id="txtSeparator" placeholder="Q/A Separator" value="---">
+                    <button id="importPdfBtn">Import from .pdf</button>
+                    <input type="file" id="importPdfInput" accept=".pdf" style="display: none;">
+                    <button id="importDocxBtn">Import from .docx</button>
+                    <input type="file" id="importDocxInput" accept=".docx" style="display: none;">
+                </div>
+                <small>For all file imports, format your file by separating questions and answers with the separator on a new line.</small>
 
                 <div class="deck-selection">
                     <label for="deckSelector">Select Deck:</label>
@@ -202,6 +243,12 @@
             </div>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.10.0/mammoth.browser.min.js"></script>
+    <script>
+        // Required by PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js`;
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
