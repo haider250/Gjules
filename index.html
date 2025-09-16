@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Flashcard Pro</h1>
+        <h1>Flashcard Pro <span id="streak-display"></span></h1>
 
         <div id="daily-review-container">
             <button id="start-daily-review-btn">
@@ -34,6 +34,7 @@
             <button id="loadDeckBtn">Load New Deck</button>
             <button id="manageDecksBtn">Manage Decks</button>
             <button id="statsBtn">Statistics</button>
+            <button id="achievementsBtn">Achievements</button>
             <div id="loader" class="loader" style="display: none;"></div>
         </div>
 
@@ -152,6 +153,17 @@
                         <h3>Upcoming Reviews</h3>
                         <canvas id="forecastChart"></canvas>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Achievements Modal -->
+        <div id="achievementsModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Achievements</h2>
+                <div id="achievements-list-container">
+                    <!-- Achievements will be dynamically inserted here -->
                 </div>
             </div>
         </div>

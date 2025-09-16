@@ -46,6 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const heatmapContainer = document.getElementById('heatmap-container');
     const closeStatsModalBtn = statsModal.querySelector('.close-btn');
 
+    // Gamification Elements
+    const streakDisplay = document.getElementById('streak-display');
+    const achievementsBtn = document.getElementById('achievementsBtn');
+    const achievementsModal = document.getElementById('achievementsModal');
+    const closeAchievementsModalBtn = achievementsModal.querySelector('.close-btn');
+    const achievementsListContainer = document.getElementById('achievements-list-container');
+
     const newDeckNameInput = document.getElementById('newDeckName');
     const createDeckBtn = document.getElementById('createDeckBtn');
     const importDeckBtn = document.getElementById('importDeckBtn');
@@ -94,6 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!appData.reviewHistory) {
             appData.reviewHistory = [];
+        }
+        if (!appData.gamification) {
+            appData.gamification = {
+                currentStreak: 0,
+                longestStreak: 0,
+                lastStudyDay: null,
+                unlockedAchievements: []
+            };
         }
     }
 
@@ -272,6 +287,32 @@ document.addEventListener('DOMContentLoaded', () => {
             quality: quality
         });
 
+        // Handle streak update
+        const today = new Date().toISOString().split('T')[0];
+        if (appData.gamification.lastStudyDay !== today) {
+            if (appData.gamification.lastStudyDay === new Date(Date.now() - 86400000).toISOString().split('T')[0]) {
+                appData.gamification.currentStreak++;
+            } else {
+                appData.gamification.currentStreak = 1;
+            }
+            appData.gamification.lastStudyDay = today;
+            if (appData.gamification.currentStreak > appData.gamification.longestStreak) {
+                appData.gamification.longestStreak = appData.gamification.currentStreak;
+            }
+            // Check for streak achievements
+            if (appData.gamification.currentStreak >= 3) checkAndUnlockAchievement('streak_3');
+            if (appData.gamification.currentStreak >= 7) checkAndUnlockAchievement('streak_7');
+        }
+
+        // Check for first review
+        checkAndUnlockAchievement('first_review');
+
+        // Check for mature card achievement
+        const matureCards = Object.values(appData.decks).flat().filter(c => c.interval >= 21).length;
+        if (matureCards >= 10) {
+            checkAndUnlockAchievement('deck_master_10');
+        }
+
         saveAppData();
     }
 
@@ -373,6 +414,86 @@ document.addEventListener('DOMContentLoaded', () => {
             nextQuizBtn.style.display = 'none';
             quizFeedback.textContent = '';
         }
+    }
+
+    // --- Gamification Logic ---
+
+    const ACHIEVEMENTS = {
+        first_deck: { name: 'Creator', description: 'Create your first deck.' },
+        first_review: { name: 'Getting Started', description: 'Complete your first review.' },
+        streak_3: { name: 'On a Roll', description: 'Maintain a 3-day study streak.' },
+        streak_7: { name: 'Committed', description: 'Maintain a 7-day study streak.' },
+        deck_master_10: { name: 'Novice', description: 'Get 10 cards to "Mature" status.'},
+    };
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast show';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.className = toast.className.replace('show', '');
+            document.body.removeChild(toast);
+        }, 3000);
+    }
+
+    function checkAndUnlockAchievement(achievementId) {
+        if (!appData.gamification.unlockedAchievements.includes(achievementId)) {
+            appData.gamification.unlockedAchievements.push(achievementId);
+            const achievement = ACHIEVEMENTS[achievementId];
+            showToast(`Achievement Unlocked: ${achievement.name}!`);
+            saveAppData();
+        }
+    }
+
+    function updateStreak() {
+        const today = new Date().toISOString().split('T')[0];
+        const lastDay = appData.gamification.lastStudyDay;
+
+        if (lastDay) {
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            if (lastDay === yesterday) {
+                // Continued streak
+                // The actual increment happens after the first review of the day
+            } else if (lastDay !== today) {
+                // Missed a day
+                appData.gamification.currentStreak = 0;
+            }
+        }
+        // We'll need a UI element to display this later
+        updateStreakDisplay();
+    }
+
+    function updateStreakDisplay() {
+        const streak = appData.gamification.currentStreak;
+        if (streak > 0) {
+            streakDisplay.textContent = `🔥 ${streak}`;
+            streakDisplay.title = `${streak}-day study streak!`;
+        } else {
+            streakDisplay.textContent = '';
+        }
+    }
+
+    function renderAchievements() {
+        achievementsListContainer.innerHTML = '';
+        for (const id in ACHIEVEMENTS) {
+            const achievement = ACHIEVEMENTS[id];
+            const isUnlocked = appData.gamification.unlockedAchievements.includes(id);
+
+            const item = document.createElement('div');
+            item.className = 'achievement-item' + (isUnlocked ? ' unlocked' : '');
+            item.innerHTML = `<h4>${achievement.name}</h4><p>${achievement.description}</p>`;
+            achievementsListContainer.appendChild(item);
+        }
+    }
+
+    function openAchievementsModal() {
+        renderAchievements();
+        achievementsModal.style.display = 'block';
+    }
+
+    function closeAchievementsModal() {
+        achievementsModal.style.display = 'none';
     }
 
     // --- Statistics Logic ---
@@ -666,6 +787,8 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDeckManagerBtn.addEventListener('click', closeDeckManager);
     statsBtn.addEventListener('click', openStatsModal);
     closeStatsModalBtn.addEventListener('click', closeStatsModal);
+    achievementsBtn.addEventListener('click', openAchievementsModal);
+    closeAchievementsModalBtn.addEventListener('click', closeAchievementsModal);
     exportDeckBtn.addEventListener('click', exportDeck);
     importDeckBtn.addEventListener('click', () => importDeckInput.click());
     importDeckInput.addEventListener('change', importDeck);
@@ -682,6 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (newName && !appData.decks[newName]) {
             appData.decks[newName] = [];
             appData.activeDeckName = newName;
+            checkAndUnlockAchievement('first_deck');
             saveAppData();
             populateDeckSelector();
             newDeckNameInput.value = '';
@@ -744,6 +868,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initial Load ---
     function initializeApp() {
         loadAppData();
+        updateStreak(); // Check streak on load
+        updateStreakDisplay(); // Display the streak
         setStudyMode(studyMode.value);
         updateDailyReviewCount();
     }
