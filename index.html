@@ -35,6 +35,7 @@
             <button id="manageDecksBtn">Manage Decks</button>
             <button id="statsBtn">Statistics</button>
             <button id="achievementsBtn">Achievements</button>
+            <button id="leechManagerBtn">Manage Leeches (<span id="leech-count">0</span>)</button>
             <div id="loader" class="loader" style="display: none;"></div>
         </div>
 
@@ -164,6 +165,39 @@
                 <h2>Achievements</h2>
                 <div id="achievements-list-container">
                     <!-- Achievements will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Leech Management Modal -->
+        <div id="leechManagerModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Leech Detected!</h2>
+                <p>You seem to be having trouble with this card. You can edit it to make it more memorable, or suspend it for 24 hours.</p>
+
+                <div class="leech-card-editor">
+                    <label>Question:</label>
+                    <textarea id="leechCardQuestion"></textarea>
+                    <label>Answer:</label>
+                    <textarea id="leechCardAnswer"></textarea>
+                </div>
+
+                <div class="leech-actions">
+                    <button id="leechSaveChangesBtn">Save and Reset</button>
+                    <button id="leechSuspendBtn">Suspend for 24h</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leech List Modal -->
+        <div id="leechListModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Manage Leech Cards</h2>
+                <p>These are cards you frequently get wrong. You can edit them to be more memorable or suspend them from reviews.</p>
+                <div id="leech-list-container">
+                    <!-- Leech cards will be dynamically inserted here -->
                 </div>
             </div>
         </div>

@@ -53,6 +53,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeAchievementsModalBtn = achievementsModal.querySelector('.close-btn');
     const achievementsListContainer = document.getElementById('achievements-list-container');
 
+    // Leech Management Elements
+    const leechManagerBtn = document.getElementById('leechManagerBtn');
+    const leechCount = document.getElementById('leech-count');
+    const leechManagerModal = document.getElementById('leechManagerModal');
+    const closeLeechModalBtn = leechManagerModal.querySelector('.close-btn');
+    const leechCardQuestion = document.getElementById('leechCardQuestion');
+    const leechCardAnswer = document.getElementById('leechCardAnswer');
+    const leechSaveChangesBtn = document.getElementById('leechSaveChangesBtn');
+    const leechSuspendBtn = document.getElementById('leechSuspendBtn');
+    const leechListModal = document.getElementById('leechListModal');
+    const closeLeechListModalBtn = leechListModal.querySelector('.close-btn');
+    const leechListContainer = document.getElementById('leech-list-container');
+
     const newDeckNameInput = document.getElementById('newDeckName');
     const createDeckBtn = document.getElementById('createDeckBtn');
     const importDeckBtn = document.getElementById('importDeckBtn');
@@ -74,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let quizState = {};
     let isDailyReviewActive = false;
     let dailyReviewDeck = [];
+    let isLeechModalFromReview = false;
 
     // --- Data & State Management ---
     function saveAppData() {
@@ -84,24 +98,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedData = localStorage.getItem('flashcardAppData');
         if (storedData) {
             appData = JSON.parse(storedData);
+            // Data migration for older versions
             Object.values(appData.decks).forEach(deck => {
                 deck.forEach(card => {
                     if (!card.incorrect_answers) card.incorrect_answers = [];
+                    if (card.leechScore === undefined) card.leechScore = 0;
+                    if (card.isLeech === undefined) card.isLeech = false;
                 });
             });
         } else {
             appData = {
                 decks: { 'Sample Deck': [
-                    { id: 'sample-1', question: 'Welcome! What is the capital of France?', answer: 'Paris', incorrect_answers: ['London', 'Berlin', 'Madrid'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
-                    { id: 'sample-2', question: 'This app now has a Quiz Mode. What is 2 + 2?', answer: '4', incorrect_answers: ['3', '5', '6'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now() },
+                    { id: 'sample-1', question: 'Welcome! What is the capital of France?', answer: 'Paris', incorrect_answers: ['London', 'Berlin', 'Madrid'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false },
+                    { id: 'sample-2', question: 'This app now has a Quiz Mode. What is 2 + 2?', answer: '4', incorrect_answers: ['3', '5', '6'], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false },
                 ]},
                 activeDeckName: 'Sample Deck'
             };
             saveAppData();
         }
-        if (!appData.reviewHistory) {
-            appData.reviewHistory = [];
-        }
+        if (!appData.reviewHistory) appData.reviewHistory = [];
         if (!appData.gamification) {
             appData.gamification = {
                 currentStreak: 0,
@@ -114,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- View Switching ---
     function setStudyMode(mode) {
-        isDailyReviewActive = false; // Always reset daily review mode when switching
+        isDailyReviewActive = false;
         if (mode === 'recall') {
             quizView.style.display = 'none';
             recallView.style.display = 'block';
@@ -129,25 +144,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Daily Review Logic ---
     function updateDailyReviewCount() {
         const now = Date.now();
-        const allDueCards = Object.values(appData.decks).flat().filter(card => card.dueDate <= now);
+        const allDueCards = Object.values(appData.decks).flat().filter(card => card.dueDate <= now && !card.isLeech);
         dailyReviewCount.textContent = `(${allDueCards.length})`;
     }
 
     function startDailyReview() {
         const now = Date.now();
-        dailyReviewDeck = Object.values(appData.decks).flat().filter(card => card.dueDate <= now);
+        dailyReviewDeck = Object.values(appData.decks).flat().filter(card => card.dueDate <= now && !card.isLeech);
 
         if (dailyReviewDeck.length === 0) {
             alert("No cards are due for review today!");
             return;
         }
 
-        dailyReviewDeck.sort(() => 0.5 - Math.random()); // Shuffle the daily deck
+        dailyReviewDeck.sort(() => 0.5 - Math.random());
         isDailyReviewActive = true;
-        studyMode.value = 'recall'; // Daily review always uses recall mode
+        studyMode.value = 'recall';
         quizView.style.display = 'none';
         recallView.style.display = 'block';
-        showCard(getNextCard()); // getNextCard will now use the daily review deck
+        showCard(getNextCard());
     }
 
     // --- Recall Mode Logic ---
@@ -160,12 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeDeck || activeDeck.length === 0) return null;
 
         const now = Date.now();
-        const dueCards = activeDeck.filter(card => card.dueDate <= now);
-        if (dueCards.length > 0) {
-            dueCards.sort((a, b) => a.dueDate - b.dueDate);
-            return dueCards[0];
-        }
-        return null;
+        const dueCards = activeDeck.filter(card => card.dueDate <= now && !card.isLeech);
+        return dueCards.length > 0 ? dueCards.sort((a, b) => a.dueDate - b.dueDate)[0] : null;
     }
 
     function showCard(card) {
@@ -177,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
         noCardsMessage.id = 'no-cards-message';
         recallView.appendChild(noCardsMessage);
 
-        // Clear previous media
         document.getElementById('questionMedia').innerHTML = '';
         document.getElementById('answerMedia').innerHTML = '';
 
@@ -186,29 +196,20 @@ document.addEventListener('DOMContentLoaded', () => {
             questionText.textContent = currentCard.question;
             answerText.textContent = currentCard.answer;
 
-            // Render Question Media
             if (currentCard.questionImageUrl) {
-                const img = document.createElement('img');
-                img.src = currentCard.questionImageUrl;
+                const img = document.createElement('img'); img.src = currentCard.questionImageUrl;
                 document.getElementById('questionMedia').appendChild(img);
             }
             if (currentCard.questionAudioUrl) {
-                const audio = document.createElement('audio');
-                audio.src = currentCard.questionAudioUrl;
-                audio.controls = true;
+                const audio = document.createElement('audio'); audio.src = currentCard.questionAudioUrl; audio.controls = true;
                 document.getElementById('questionMedia').appendChild(audio);
             }
-
-            // Render Answer Media
             if (currentCard.answerImageUrl) {
-                const img = document.createElement('img');
-                img.src = currentCard.answerImageUrl;
+                const img = document.createElement('img'); img.src = currentCard.answerImageUrl;
                 document.getElementById('answerMedia').appendChild(img);
             }
             if (currentCard.answerAudioUrl) {
-                const audio = document.createElement('audio');
-                audio.src = currentCard.answerAudioUrl;
-                audio.controls = true;
+                const audio = document.createElement('audio'); audio.src = currentCard.answerAudioUrl; audio.controls = true;
                 document.getElementById('answerMedia').appendChild(audio);
             }
 
@@ -225,11 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             noCardsMessage.textContent = `No cards due for review in "${appData.activeDeckName}". Great job!`;
             noCardsMessage.style.display = 'block';
         }
-        if (isDailyReviewActive) {
-            deckNameDisplay.textContent = `Daily Review (${dailyReviewDeck.length} cards remaining)`;
-        } else {
-            deckNameDisplay.textContent = `Current Deck: ${appData.activeDeckName}`;
-        }
+        deckNameDisplay.textContent = isDailyReviewActive ? `Daily Review (${dailyReviewDeck.length} cards remaining)` : `Current Deck: ${appData.activeDeckName}`;
     }
 
     function checkAnswer() {
@@ -250,44 +247,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function calculateSM2(card, quality) {
-        // If in a daily review, find the original card to update
         let originalCard = card;
         if (isDailyReviewActive) {
             for (const deckName in appData.decks) {
                 const foundCard = appData.decks[deckName].find(c => c.id === card.id);
-                if (foundCard) {
-                    originalCard = foundCard;
-                    break;
-                }
+                if (foundCard) { originalCard = foundCard; break; }
             }
         }
 
         if (quality < 3) {
             originalCard.repetition = 0;
             originalCard.interval = 1;
+            originalCard.leechScore = (originalCard.leechScore || 0) + 1;
         } else {
+            originalCard.leechScore = Math.max(0, (originalCard.leechScore || 0) - 1);
             originalCard.repetition = (originalCard.repetition || 0) + 1;
-            if (originalCard.repetition === 1) {
-                originalCard.interval = 1;
-            } else if (originalCard.repetition === 2) {
-                originalCard.interval = 6;
-            } else {
-                originalCard.interval = Math.ceil((originalCard.interval || 1) * originalCard.easeFactor);
-            }
+            if (originalCard.repetition === 1) originalCard.interval = 1;
+            else if (originalCard.repetition === 2) originalCard.interval = 6;
+            else originalCard.interval = Math.ceil((originalCard.interval || 1) * originalCard.easeFactor);
         }
         originalCard.easeFactor = (originalCard.easeFactor || 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
         if (originalCard.easeFactor < 1.3) originalCard.easeFactor = 1.3;
 
-        const oneDayInMillis = 24 * 60 * 60 * 1000;
-        originalCard.dueDate = Date.now() + originalCard.interval * oneDayInMillis;
+        originalCard.dueDate = Date.now() + originalCard.interval * 24 * 60 * 60 * 1000;
 
-        appData.reviewHistory.push({
-            cardId: originalCard.id,
-            timestamp: Date.now(),
-            quality: quality
-        });
+        appData.reviewHistory.push({ cardId: originalCard.id, timestamp: Date.now(), quality: quality });
 
-        // Handle streak update
         const today = new Date().toISOString().split('T')[0];
         if (appData.gamification.lastStudyDay !== today) {
             if (appData.gamification.lastStudyDay === new Date(Date.now() - 86400000).toISOString().split('T')[0]) {
@@ -299,18 +284,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (appData.gamification.currentStreak > appData.gamification.longestStreak) {
                 appData.gamification.longestStreak = appData.gamification.currentStreak;
             }
-            // Check for streak achievements
             if (appData.gamification.currentStreak >= 3) checkAndUnlockAchievement('streak_3');
             if (appData.gamification.currentStreak >= 7) checkAndUnlockAchievement('streak_7');
         }
 
-        // Check for first review
         checkAndUnlockAchievement('first_review');
-
-        // Check for mature card achievement
-        const matureCards = Object.values(appData.decks).flat().filter(c => c.interval >= 21).length;
-        if (matureCards >= 10) {
+        if (Object.values(appData.decks).flat().filter(c => c.interval >= 21).length >= 10) {
             checkAndUnlockAchievement('deck_master_10');
+        }
+
+        if (originalCard.leechScore >= 4 && !originalCard.isLeech) {
+            originalCard.isLeech = true;
+            updateLeechCount();
+            handleLeech(originalCard, true);
         }
 
         saveAppData();
@@ -318,14 +304,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Quiz Mode Logic ---
     function startQuiz() {
-        recallView.style.display = 'none';
-        quizView.style.display = 'block';
         const activeDeck = appData.decks[appData.activeDeckName];
         if (!activeDeck || activeDeck.length < 4) {
             quizQuestion.textContent = 'Quiz mode requires at least 4 cards in the deck.';
-            quizOptionsContainer.innerHTML = '';
-            quizProgress.textContent = '';
-            quizScore.textContent = '';
+            quizOptionsContainer.innerHTML = ''; quizProgress.textContent = ''; quizScore.textContent = '';
             return;
         }
         quizState = {
@@ -339,21 +321,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function showQuizQuestion() {
         quizFeedback.textContent = '';
         nextQuizBtn.style.display = 'none';
-
         const quizMediaContainer = document.getElementById('quizQuestionMedia');
         quizMediaContainer.innerHTML = '';
 
         const questionData = quizState.questions[quizState.currentQuestionIndex];
 
         if (questionData.questionImageUrl) {
-            const img = document.createElement('img');
-            img.src = questionData.questionImageUrl;
+            const img = document.createElement('img'); img.src = questionData.questionImageUrl;
             quizMediaContainer.appendChild(img);
         }
         if (questionData.questionAudioUrl) {
-            const audio = document.createElement('audio');
-            audio.src = questionData.questionAudioUrl;
-            audio.controls = true;
+            const audio = document.createElement('audio'); audio.src = questionData.questionAudioUrl; audio.controls = true;
             quizMediaContainer.appendChild(audio);
         }
 
@@ -375,9 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateQuizOptions(card) {
         let options = [...card.incorrect_answers];
         if (options.length < 3) {
-            const otherAnswers = appData.decks[appData.activeDeckName]
-                .filter(c => c.id !== card.id)
-                .map(c => c.answer);
+            const otherAnswers = appData.decks[appData.activeDeckName].filter(c => c.id !== card.id).map(c => c.answer);
             options = [...new Set([...options, ...otherAnswers])];
         }
         options = options.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -416,8 +392,103 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Gamification Logic ---
+    // --- Leech Management Logic ---
+    function updateLeechCount() {
+        const allLeeches = Object.values(appData.decks).flat().filter(card => card.isLeech);
+        leechCount.textContent = allLeeches.length;
+    }
 
+    function findCardById(cardId) {
+        for (const deck of Object.values(appData.decks)) {
+            const card = deck.find(c => c.id === cardId);
+            if (card) return card;
+        }
+        return null;
+    }
+
+    function renderLeechList() {
+        leechListContainer.innerHTML = '';
+        const allLeeches = Object.values(appData.decks).flat().filter(card => card.isLeech);
+
+        if (allLeeches.length === 0) {
+            leechListContainer.innerHTML = '<p>No leeches found. Good job!</p>';
+            return;
+        }
+
+        allLeeches.forEach(card => {
+            const item = document.createElement('div');
+            item.className = 'leech-list-item';
+            item.innerHTML = `
+                <p title="${card.question}">${card.question}</p>
+                <div class="leech-item-actions">
+                    <button class="edit-leech-btn" data-card-id="${card.id}">Edit</button>
+                    <button class="suspend-leech-btn" data-card-id="${card.id}">Suspend</button>
+                </div>
+            `;
+            leechListContainer.appendChild(item);
+        });
+    }
+
+    function openLeechListModal() {
+        renderLeechList();
+        leechListModal.style.display = 'block';
+    }
+
+    function closeLeechListModal() {
+        leechListModal.style.display = 'none';
+    }
+
+    function handleLeech(card, fromReview = false) {
+        isLeechModalFromReview = fromReview;
+        leechCardToHandle = card;
+        leechCardQuestion.value = card.question;
+        leechCardAnswer.value = card.answer;
+        leechManagerModal.style.display = 'block';
+    }
+
+    function closeLeechModal() {
+        leechManagerModal.style.display = 'none';
+        if (isLeechModalFromReview) {
+            showCard(getNextCard());
+        }
+        leechCardToHandle = null;
+    }
+
+    function resolveLeechByEditing() {
+        if (!leechCardToHandle) return;
+        const newQuestion = leechCardQuestion.value.trim();
+        const newAnswer = leechCardAnswer.value.trim();
+
+        if (newQuestion && newAnswer) {
+            leechCardToHandle.question = newQuestion;
+            leechCardToHandle.answer = newAnswer;
+            leechCardToHandle.isLeech = false;
+            leechCardToHandle.leechScore = 0;
+            saveAppData();
+            updateLeechCount();
+            if (leechListModal.style.display === 'block') {
+                renderLeechList();
+            }
+            closeLeechModal();
+        } else {
+            alert('Question and Answer cannot be empty.');
+        }
+    }
+
+    function resolveLeechBySuspending() {
+        if (!leechCardToHandle) return;
+        leechCardToHandle.dueDate = Date.now() + 24 * 60 * 60 * 1000;
+        leechCardToHandle.isLeech = false;
+        leechCardToHandle.leechScore = 0;
+        saveAppData();
+        updateLeechCount();
+        if (leechListModal.style.display === 'block') {
+            renderLeechList();
+        }
+        closeLeechModal();
+    }
+
+    // --- Gamification Logic ---
     const ACHIEVEMENTS = {
         first_deck: { name: 'Creator', description: 'Create your first deck.' },
         first_review: { name: 'Getting Started', description: 'Complete your first review.' },
@@ -449,18 +520,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStreak() {
         const today = new Date().toISOString().split('T')[0];
         const lastDay = appData.gamification.lastStudyDay;
-
-        if (lastDay) {
-            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-            if (lastDay === yesterday) {
-                // Continued streak
-                // The actual increment happens after the first review of the day
-            } else if (lastDay !== today) {
-                // Missed a day
-                appData.gamification.currentStreak = 0;
-            }
+        if (lastDay && lastDay !== today && lastDay !== new Date(Date.now() - 86400000).toISOString().split('T')[0]) {
+            appData.gamification.currentStreak = 0;
         }
-        // We'll need a UI element to display this later
         updateStreakDisplay();
     }
 
@@ -479,7 +541,6 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const id in ACHIEVEMENTS) {
             const achievement = ACHIEVEMENTS[id];
             const isUnlocked = appData.gamification.unlockedAchievements.includes(id);
-
             const item = document.createElement('div');
             item.className = 'achievement-item' + (isUnlocked ? ' unlocked' : '');
             item.innerHTML = `<h4>${achievement.name}</h4><p>${achievement.description}</p>`;
@@ -501,130 +562,89 @@ document.addEventListener('DOMContentLoaded', () => {
         const reviewsByDay = {};
         appData.reviewHistory.forEach(review => {
             const date = new Date(review.timestamp).toISOString().split('T')[0];
-            if (!reviewsByDay[date]) {
-                reviewsByDay[date] = 0;
-            }
-            reviewsByDay[date]++;
+            reviewsByDay[date] = (reviewsByDay[date] || 0) + 1;
         });
         return reviewsByDay;
     }
 
     function getCardMaturityData() {
         const maturity = { new: 0, learning: 0, mature: 0 };
-        const allCards = Object.values(appData.decks).flat();
-        allCards.forEach(card => {
-            if (card.interval >= 21) {
-                maturity.mature++;
-            } else if (card.interval >= 1) {
-                maturity.learning++;
-            } else {
-                maturity.new++;
-            }
+        Object.values(appData.decks).flat().forEach(card => {
+            if (card.interval >= 21) maturity.mature++;
+            else if (card.interval >= 1) maturity.learning++;
+            else maturity.new++;
         });
         return maturity;
     }
 
     function getUpcomingReviewsData() {
         const forecast = Array(7).fill(0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
         const oneDayInMillis = 24 * 60 * 60 * 1000;
-
-        const allCards = Object.values(appData.decks).flat();
-        allCards.forEach(card => {
+        Object.values(appData.decks).flat().forEach(card => {
             const diff = card.dueDate - today.getTime();
             if (diff >= 0 && diff < 7 * oneDayInMillis) {
-                const dayIndex = Math.floor(diff / oneDayInMillis);
-                forecast[dayIndex]++;
+                forecast[Math.floor(diff / oneDayInMillis)]++;
             }
         });
         return forecast;
     }
 
     let maturityChartInstance, forecastChartInstance;
-
     function renderStatistics() {
-        const maturityData = getCardMaturityData();
-        const forecastData = getUpcomingReviewsData();
-
         if (maturityChartInstance) maturityChartInstance.destroy();
+        if (forecastChartInstance) forecastChartInstance.destroy();
+
+        const maturityData = getCardMaturityData();
         maturityChartInstance = new Chart(maturityChartCtx, {
             type: 'pie',
             data: {
                 labels: ['New', 'Learning', 'Mature'],
-                datasets: [{
-                    label: 'Card Maturity',
-                    data: [maturityData.new, maturityData.learning, maturityData.mature],
-                    backgroundColor: ['#36a2eb', '#ffcd56', '#4bc0c0'],
-                }]
+                datasets: [{ data: [maturityData.new, maturityData.learning, maturityData.mature], backgroundColor: ['#36a2eb', '#ffcd56', '#4bc0c0'] }]
             },
         });
 
-        if (forecastChartInstance) forecastChartInstance.destroy();
+        const forecastData = getUpcomingReviewsData();
         forecastChartInstance = new Chart(forecastChartCtx, {
             type: 'bar',
             data: {
-                labels: ['Today', '+1 Day', '+2 Days', '+3 Days', '+4 Days', '+5 Days', '+6 Days'],
-                datasets: [{
-                    label: 'Upcoming Reviews',
-                    data: forecastData,
-                    backgroundColor: '#ff6384',
-                }]
+                labels: Array.from({length: 7}, (_, i) => `+${i} Day${i > 0 ? 's' : ''}`),
+                datasets: [{ label: 'Upcoming Reviews', data: forecastData, backgroundColor: '#ff6384' }]
             },
-            options: {
-                scales: { y: { beginAtZero: true } }
-            }
+            options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
         });
 
-        // Simple heatmap rendering (can be improved later)
         const heatmapData = getReviewDataForCalendar();
         heatmapContainer.innerHTML = 'Last 30 days of reviews:<br>';
         for (let i = 29; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
+            const date = new Date(); date.setDate(date.getDate() - i);
             const dateString = date.toISOString().split('T')[0];
             const count = heatmapData[dateString] || 0;
             const cell = document.createElement('span');
-            cell.style.display = 'inline-block';
-            cell.style.width = '20px';
-            cell.style.height = '20px';
+            cell.className = 'heatmap-cell';
             cell.style.backgroundColor = `rgba(0, 123, 255, ${Math.min(count / 10, 1)})`;
             cell.title = `${dateString}: ${count} reviews`;
             heatmapContainer.appendChild(cell);
         }
     }
 
-    function openStatsModal() {
-        statsModal.style.display = 'block';
-        renderStatistics();
-    }
-
-    function closeStatsModal() {
-        statsModal.style.display = 'none';
-    }
-
+    function openStatsModal() { statsModal.style.display = 'block'; renderStatistics(); }
+    function closeStatsModal() { statsModal.style.display = 'none'; }
 
     // --- Deck Management Modal Logic ---
-    function openDeckManager() {
-        populateDeckSelector();
-        deckManagerModal.style.display = 'block';
-    }
-
-    function closeDeckManager() {
-        deckManagerModal.style.display = 'none';
-        setStudyMode(studyMode.value);
-    }
+    function openDeckManager() { populateDeckSelector(); deckManagerModal.style.display = 'block'; }
+    function closeDeckManager() { deckManagerModal.style.display = 'none'; setStudyMode(studyMode.value); }
 
     function populateDeckSelector() {
         const currentDeck = deckSelector.value || appData.activeDeckName;
         deckSelector.innerHTML = '';
-        for (const deckName in appData.decks) {
+        Object.keys(appData.decks).forEach(deckName => {
             const option = document.createElement('option');
-            option.value = deckName;
-            option.textContent = deckName;
+            option.value = deckName; option.textContent = deckName;
             deckSelector.appendChild(option);
-        }
-        deckSelector.value = appData.decks[currentDeck] ? currentDeck : appData.activeDeckName;
+        });
+        deckSelector.value = appData.decks[currentDeck] ? currentDeck : Object.keys(appData.decks)[0];
+        appData.activeDeckName = deckSelector.value;
         renderCardList(deckSelector.value);
     }
 
@@ -635,86 +655,46 @@ document.addEventListener('DOMContentLoaded', () => {
         deck.forEach(card => {
             const cardEl = document.createElement('div');
             cardEl.className = 'card-list-item';
-
-            let mediaIcon = '';
-            if (card.questionImageUrl || card.answerImageUrl || card.questionAudioUrl || card.answerAudioUrl) {
-                mediaIcon = '<span class="media-icon" title="This card contains multimedia">📎</span>';
-            }
-
+            const mediaIcon = (card.questionImageUrl || card.answerImageUrl || card.questionAudioUrl || card.answerAudioUrl) ? '<span class="media-icon" title="This card contains multimedia">📎</span>' : '';
             cardEl.innerHTML = `<p>${card.question} ${mediaIcon}</p><button class="delete-card-btn" data-card-id="${card.id}">&times;</button>`;
             cardListContainer.appendChild(cardEl);
         });
     }
 
     function exportDeck() {
-        const deckNameToExport = deckSelector.value;
-        const deck = appData.decks[deckNameToExport];
-        if (!deck) {
-            alert('Could not find the selected deck to export.');
-            return;
-        }
-
-        // Create a Blob from the JSON data
+        const deck = appData.decks[deckSelector.value];
+        if (!deck) return;
         const dataStr = JSON.stringify(deck, null, 2);
         const dataBlob = new Blob([dataStr], {type: 'application/json'});
         const url = URL.createObjectURL(dataBlob);
-
-        // Create a temporary link to trigger the download
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `${deckNameToExport.replace(/\s+/g, '-')}.json`;
-        document.body.appendChild(a);
-        a.click();
-
-        // Clean up
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        a.href = url; a.download = `${deckSelector.value.replace(/\s+/g, '-')}.json`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 
     function importDeck(event) {
         const file = event.target.files[0];
-        if (!file) {
-            return;
-        }
-
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const deckData = JSON.parse(e.target.result);
-
-                // Basic validation
-                if (!Array.isArray(deckData) || deckData.some(card => !card.question || !card.answer)) {
-                    throw new Error('Invalid deck format.');
-                }
-
+                if (!Array.isArray(deckData) || deckData.some(c => !c.question || !c.answer)) throw new Error('Invalid deck format.');
                 let deckName = file.name.replace(/\.json$/, '').replace(/[-_]/g, ' ');
-                let originalDeckName = deckName;
-                let counter = 1;
-                while (appData.decks[deckName]) {
-                    deckName = `${originalDeckName} (${counter++})`;
-                }
-
-                // Sanitize and add default values to imported cards
+                let originalDeckName = deckName; let counter = 1;
+                while (appData.decks[deckName]) deckName = `${originalDeckName} (${counter++})`;
                 appData.decks[deckName] = deckData.map(card => ({
-                    ...card,
-                    id: `imported-${Date.now()}-${Math.random()}`,
-                    repetition: 0,
-                    easeFactor: 2.5,
-                    interval: 0,
-                    dueDate: Date.now(),
+                    ...card, id: `imported-${Date.now()}-${Math.random()}`,
+                    repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false,
                     incorrect_answers: card.incorrect_answers || [],
                 }));
-
                 appData.activeDeckName = deckName;
-                saveAppData();
-                populateDeckSelector();
+                saveAppData(); populateDeckSelector();
                 alert(`Deck "${deckName}" imported successfully!`);
-
             } catch (error) {
-                alert('Failed to import deck. Please make sure it is a valid JSON file with the correct structure.');
-                console.error("Error importing deck:", error);
+                alert('Failed to import deck.'); console.error(error);
             } finally {
-                // Reset file input to allow importing the same file again
                 importDeckInput.value = '';
             }
         };
@@ -723,34 +703,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- API Integration ---
     async function fetchNewDeck(categoryId, categoryName) {
-        loader.style.display = 'block';
-        loadDeckBtn.disabled = true;
+        loader.style.display = 'block'; loadDeckBtn.disabled = true;
         try {
             const response = await fetch(`https://opentdb.com/api.php?amount=10&type=multiple&category=${categoryId}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
-            if (data.response_code !== 0) {
-                alert('Could not fetch new questions. Please try a different category.');
-                return;
-            }
+            if (data.response_code !== 0) { alert('Could not fetch new questions.'); return; }
             const newDeckName = `Trivia: ${categoryName}`;
             appData.decks[newDeckName] = data.results.map((item, index) => ({
                 id: `${categoryId}-${Date.now()}-${index}`,
                 question: new DOMParser().parseFromString(item.question, "text/html").documentElement.textContent,
                 answer: new DOMParser().parseFromString(item.correct_answer, "text/html").documentElement.textContent,
                 incorrect_answers: item.incorrect_answers.map(ia => new DOMParser().parseFromString(ia, "text/html").documentElement.textContent),
-                repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(),
+                repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false,
             }));
             appData.activeDeckName = newDeckName;
-            saveAppData();
-            studyMode.value = 'quiz';
-            setStudyMode('quiz');
+            saveAppData(); studyMode.value = 'quiz'; setStudyMode('quiz');
         } catch (error) {
-            console.error("Failed to fetch new deck:", error);
-            alert("Failed to load new deck. Please check your connection and try again.");
+            console.error(error); alert("Failed to load new deck.");
         } finally {
-            loader.style.display = 'none';
-            loadDeckBtn.disabled = false;
+            loader.style.display = 'none'; loadDeckBtn.disabled = false;
         }
     }
 
@@ -766,32 +738,49 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentCard) return;
             const quality = {'hard': 0, 'good': 3, 'easy': 5}[e.target.dataset.difficulty];
             calculateSM2(currentCard, quality);
-
-            if (isDailyReviewActive) {
-                // Remove the card from the temporary daily deck
-                dailyReviewDeck.shift();
-            }
-
+            if (isDailyReviewActive) dailyReviewDeck.shift();
             showCard(getNextCard());
-            updateDailyReviewCount(); // Update the count on the main button
+            updateDailyReviewCount();
         });
     });
 
-    loadDeckBtn.addEventListener('click', () => {
-        const selectedCategory = categorySelector.value;
-        const selectedCategoryName = categorySelector.options[categorySelector.selectedIndex].text;
-        fetchNewDeck(selectedCategory, selectedCategoryName);
-    });
-
+    loadDeckBtn.addEventListener('click', () => fetchNewDeck(categorySelector.value, categorySelector.options[categorySelector.selectedIndex].text));
     manageDecksBtn.addEventListener('click', openDeckManager);
     closeDeckManagerBtn.addEventListener('click', closeDeckManager);
     statsBtn.addEventListener('click', openStatsModal);
     closeStatsModalBtn.addEventListener('click', closeStatsModal);
     achievementsBtn.addEventListener('click', openAchievementsModal);
     closeAchievementsModalBtn.addEventListener('click', closeAchievementsModal);
+    leechSaveChangesBtn.addEventListener('click', resolveLeechByEditing);
+    leechSuspendBtn.addEventListener('click', resolveLeechBySuspending);
+    closeLeechModalBtn.addEventListener('click', closeLeechModal);
     exportDeckBtn.addEventListener('click', exportDeck);
     importDeckBtn.addEventListener('click', () => importDeckInput.click());
     importDeckInput.addEventListener('change', importDeck);
+
+    leechManagerBtn.addEventListener('click', openLeechListModal);
+    closeLeechListModalBtn.addEventListener('click', closeLeechListModal);
+    leechListContainer.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (!button) return;
+        const cardId = button.dataset.cardId;
+        if (!cardId) return;
+
+        const card = findCardById(cardId);
+        if (!card) return;
+
+        if (button.classList.contains('edit-leech-btn')) {
+            // Don't close the list modal, so the user returns to it after editing.
+            handleLeech(card, false);
+        } else if (button.classList.contains('suspend-leech-btn')) {
+            card.dueDate = Date.now() + 24 * 60 * 60 * 1000;
+            card.isLeech = false;
+            card.leechScore = 0;
+            saveAppData();
+            updateLeechCount();
+            renderLeechList();
+        }
+    });
 
     deckSelector.addEventListener('change', () => {
         appData.activeDeckName = deckSelector.value;
@@ -826,50 +815,37 @@ document.addEventListener('DOMContentLoaded', () => {
     addCardBtn.addEventListener('click', () => {
         const question = newCardQuestionInput.value.trim();
         const answer = newCardAnswerInput.value.trim();
-        const selectedDeckName = deckSelector.value;
-        if (question && answer && selectedDeckName) {
-            const newCard = {
-                id: `custom-${Date.now()}`,
-                question,
-                answer,
+        if (question && answer && deckSelector.value) {
+            appData.decks[deckSelector.value].push({
+                id: `custom-${Date.now()}`, question, answer,
                 questionImageUrl: newCardQuestionImageUrl.value.trim(),
                 answerImageUrl: newCardAnswerImageUrl.value.trim(),
                 questionAudioUrl: newCardQuestionAudioUrl.value.trim(),
                 answerAudioUrl: newCardAnswerAudioUrl.value.trim(),
-                incorrect_answers: [],
-                repetition: 0,
-                easeFactor: 2.5,
-                interval: 0,
-                dueDate: Date.now()
-            };
-            appData.decks[selectedDeckName].push(newCard);
+                incorrect_answers: [], repetition: 0, easeFactor: 2.5, interval: 0, dueDate: Date.now(), leechScore: 0, isLeech: false
+            });
             saveAppData();
-            renderCardList(selectedDeckName);
-            // Clear all inputs
-            newCardQuestionInput.value = '';
-            newCardAnswerInput.value = '';
-            newCardQuestionImageUrl.value = '';
-            newCardAnswerImageUrl.value = '';
-            newCardQuestionAudioUrl.value = '';
-            newCardAnswerAudioUrl.value = '';
+            renderCardList(deckSelector.value);
+            [newCardQuestionInput, newCardAnswerInput, newCardQuestionImageUrl, newCardAnswerImageUrl, newCardQuestionAudioUrl, newCardAnswerAudioUrl].forEach(i => i.value = '');
         } else { alert('Please fill in both question and answer.'); }
     });
 
     cardListContainer.addEventListener('click', (e) => {
         if (e.target.classList.contains('delete-card-btn')) {
             const cardId = e.target.dataset.cardId;
-            const selectedDeckName = deckSelector.value;
-            const deck = appData.decks[selectedDeckName];
+            const deck = appData.decks[deckSelector.value];
             const cardIndex = deck.findIndex(card => card.id === cardId);
-            if (cardIndex > -1) { deck.splice(cardIndex, 1); saveAppData(); renderCardList(selectedDeckName); }
+            if (cardIndex > -1) { deck.splice(cardIndex, 1); saveAppData(); renderCardList(deckSelector.value); }
         }
     });
 
     // --- Initial Load ---
     function initializeApp() {
         loadAppData();
-        updateStreak(); // Check streak on load
-        updateStreakDisplay(); // Display the streak
+        updateStreak();
+        updateStreakDisplay();
+        updateLeechCount();
+        populateDeckSelector();
         setStudyMode(studyMode.value);
         updateDailyReviewCount();
     }
