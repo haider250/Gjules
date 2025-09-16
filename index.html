@@ -27,25 +27,56 @@
             <div id="loader" class="loader" style="display: none;"></div>
         </div>
 
-        <h2 id="deckNameDisplay"></h2>
-
-        <div id="flashcard-container" class="flashcard-container">
-            <div id="flashcard" class="flashcard">
-                <div class="flashcard-front">
-                    <p id="questionText">Question will appear here.</p>
-                </div>
-                <div class="flashcard-back">
-                    <p id="answerText">Answer will appear here.</p>
-                </div>
+        <div class="deck-meta">
+            <h2 id="deckNameDisplay"></h2>
+            <div class="study-mode-selector">
+                <label for="studyMode">Mode:</label>
+                <select id="studyMode">
+                    <option value="recall">Recall</option>
+                    <option value="quiz">Quiz</option>
+                </select>
             </div>
         </div>
-        <div class="controls">
-            <button id="flipBtn">Flip</button>
+
+        <div id="recall-view">
+            <div id="flashcard-container" class="flashcard-container">
+                <div id="flashcard" class="flashcard">
+                    <div class="flashcard-front">
+                    <div id="questionMedia" class="media-container"></div>
+                        <p id="questionText">Question will appear here.</p>
+                    </div>
+                    <div class="flashcard-back">
+                    <div id="answerMedia" class="media-container"></div>
+                        <p id="answerText">Answer will appear here.</p>
+                    </div>
+                </div>
+            </div>
+            <div id="answerResult" class="answer-result"></div>
+            <div id="interactive-controls" class="controls">
+                <input type="text" id="answerInput" placeholder="Type your answer...">
+                <button id="submitAnswerBtn">Submit</button>
+            </div>
+            <div id="difficulty-controls" class="difficulty-controls" style="display: none;">
+                <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+                <button class="difficulty-btn" data-difficulty="good">Good</button>
+                <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+            </div>
         </div>
-        <div id="difficulty-controls" class="difficulty-controls" style="display: none;">
-            <button class="difficulty-btn" data-difficulty="hard">Hard</button>
-            <button class="difficulty-btn" data-difficulty="good">Good</button>
-            <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+
+        <div id="quiz-view" style="display: none;">
+            <div class="quiz-header">
+                <p id="quiz-progress"></p>
+                <p id="quiz-score"></p>
+            </div>
+            <div id="quiz-question-container">
+                <div id="quizQuestionMedia" class="media-container"></div>
+                <p id="quiz-question"></p>
+            </div>
+            <div id="quiz-options-container">
+                <!-- Options will be dynamically inserted here -->
+            </div>
+            <div id="quiz-feedback"></div>
+            <button id="next-quiz-btn" style="display: none;">Next</button>
         </div>
 
         <!-- Deck Management Modal -->
@@ -57,11 +88,14 @@
                 <div class="deck-actions">
                     <input type="text" id="newDeckName" placeholder="New Deck Name">
                     <button id="createDeckBtn">Create Deck</button>
+                    <button id="importDeckBtn">Import Deck</button>
+                    <input type="file" id="importDeckInput" accept=".json" style="display: none;">
                 </div>
 
                 <div class="deck-selection">
                     <label for="deckSelector">Select Deck:</label>
                     <select id="deckSelector"></select>
+                    <button id="exportDeckBtn">Export Deck</button>
                     <button id="deleteDeckBtn">Delete Selected Deck</button>
                 </div>
 
@@ -69,8 +103,17 @@
 
                 <h3>Add New Card to Selected Deck</h3>
                 <div class="add-card-form">
-                    <textarea id="newCardQuestion" placeholder="Question"></textarea>
-                    <textarea id="newCardAnswer" placeholder="Answer"></textarea>
+                    <textarea id="newCardQuestion" placeholder="Question (required)"></textarea>
+                    <textarea id="newCardAnswer" placeholder="Answer (required)"></textarea>
+                    <details>
+                        <summary>Optional: Add Multimedia URLs</summary>
+                        <div class="multimedia-inputs">
+                            <input type="text" id="newCardQuestionImageUrl" placeholder="Question Image URL">
+                            <input type="text" id="newCardAnswerImageUrl" placeholder="Answer Image URL">
+                            <input type="text" id="newCardQuestionAudioUrl" placeholder="Question Audio URL">
+                            <input type="text" id="newCardAnswerAudioUrl" placeholder="Answer Audio URL">
+                        </div>
+                    </details>
                     <button id="addCardBtn">Add Card</button>
                 </div>
 
